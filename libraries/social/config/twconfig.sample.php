@@ -1,0 +1,4 @@
+<?php
+
+define('YOUR_CONSUMER_KEY', 'CHANGE ME');
+define('YOUR_CONSUMER_SECRET', 'CHANGE ME');

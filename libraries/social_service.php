@@ -258,7 +258,7 @@ class UserNotSignedInException extends Exception {
 class SocialIntegrationRequiredException extends Exception {
 
     public function __construct($socialType) {
-        parent::__construct("User must have $socialType integration to tweet");
+        parent::__construct("User must have $socialType integration to post message");
     }
 
 }

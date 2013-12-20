@@ -8,7 +8,7 @@ defined('C5_EXECUTE') or die(_("Access Denied."));
 class SocialApiController extends Controller {
 
     public function view() {
-        exit();
+
     }
 
     /**

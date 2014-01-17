@@ -28,7 +28,8 @@ if (!empty($_GET['oauth_verifier']) && !empty($_SESSION['oauth_token']) && !empt
     if (isset($user_info->error)) {
         // Something's wrong, go back to square 1
         //header('Location: login-twitter.php');
-        echo 'login-twitter.php';
+        //echo 'login-twitter.php';
+        var_dump($user_info->error);
     }
     else {
         try {
@@ -57,8 +58,7 @@ if (!empty($_GET['oauth_verifier']) && !empty($_SESSION['oauth_token']) && !empt
 }
 else {
     // Something's missing, go back to square 1
-    //header('Location: login-twitter.php');
-    echo 'login-twitter.php';
+    header('Location: ' . $return_url);
 }
 
 /*

@@ -20,6 +20,13 @@ abstract class SocialService {
     }
 
     /**
+     Get the machine name for the network
+     */
+    public function getNetworkType() {
+        return $this->type;
+    }
+
+    /**
      Get the human readable network name
      */
     public function getNetworkName() {
@@ -29,9 +36,9 @@ abstract class SocialService {
     /**
      Get the login URL for this network
      */
-    public function getLoginUrl() {
+    public function getLoginUrl($returnUrl = NULL) {
         $uh = Loader::helper('concrete/urls');
-        return $uh->getToolsURL($this->type . '_login', 'social_api');
+        return $uh->getToolsURL($this->type . '_login', 'social_api') . '?return_url=' . urlencode($returnUrl);
     }
 
     /**
@@ -46,6 +53,11 @@ abstract class SocialService {
 
         $users = $ul->get(1);
 
+        // Have we created a new account?
+        $isNew = false;
+
+        $accountData = $this->getUserAccountData($req);
+
         if (count($users)) {
             // User already exists
             $uo = $users[0];
@@ -55,9 +67,10 @@ abstract class SocialService {
             $uo = $this->getUserInfo();
         }
         else {
+            $isNew = true;
+
             // User needs to be created
-            $data = $this->getUserAccountData($req);
-            $uo = UserInfo::add($data);
+            $uo = UserInfo::add($accountData);
 
             // This is set so that we know that the newly created account cannot be used by itself (i.e. it has no password)
             $uo->setAttribute('has_unknown_password', true);
@@ -88,6 +101,27 @@ abstract class SocialService {
 
         $this->attachSocialData($uo, $req);
 
+        // Known email address logic
+        if ($isNew) {
+            // Does this shadow have stored the user's real email address?
+            $uo->setAttribute('has_unknown_email', !$accountData['emailReal']);
+        }
+        else if ($uo->getAttribute('has_unknown_email') && $accountData['emailReal']) {
+            // Patch the existing user with the known email if possible
+            $uo->update(['uEmail' => $accountData['uEmail']]);
+            $uo->setAttribute('has_unknown_email', false);
+        }
+
+        // Name logic
+        if (!empty($accountData['fullName'])) {
+            $names = explode(' ', $accountData['fullName']);
+
+            if (count($names) == 2) {
+                $uo->setAttribute('first_name', $names[0]);
+                $uo->setAttribute('last_name', $names[1]);
+            }
+        }
+
         $resp = new stdClass();
         $resp->user_id = $userID;
 
@@ -100,6 +134,19 @@ abstract class SocialService {
         if (!$this->hasIntegration()) throw new SocialIntegrationRequiredException(get_class($this));
 
         return $this->doPostMessage($message);
+    }
+
+    public function disconnect() {
+        if (!$this->hasIntegration()) throw new SocialIntegrationRequiredException(get_class($this));
+
+        $uo = $this->getUserInfo();
+
+        $this->removeSocialData($uo);
+
+        // Remove from the list of connected social networks
+        $socialNetworks = explode(',', $uo->getAttribute('social_networks'));
+        $socialNetworks = array_diff($socialNetworks, array($this->type));
+        $uo->setAttribute('social_networks', implode(',', $socialNetworks));
     }
 
     public abstract function hasIntegration();
@@ -116,6 +163,8 @@ abstract class SocialService {
     protected abstract function getUserAccountData(stdClass $req);
 
     protected abstract function attachSocialData(UserInfo $uo, stdClass $req);
+
+    protected abstract function removeSocialData(UserInfo $uo);
 
     protected function getUserInfo() {
         global $u; $user_id = $u->uID; if (!is_numeric($user_id)) return NULL;
@@ -183,7 +232,7 @@ class TwitterService extends SocialService {
     }
 
     protected function getUserAccountData(stdClass $req) {
-        return ['uName' => $req->twitter_screen_name, 'uPassword' => 'P@55W0RD', 'uEmail' => $req->twitter_screen_name . '@twitter.com'];
+        return ['uName' => $req->twitter_screen_name, 'uPassword' => 'P@55W0RD', 'uEmail' => $req->twitter_screen_name . '@twitter.com', 'emailReal' => false, 'fullName' => $req->twitter_name];
     }
 
     protected function attachSocialData(UserInfo $uo, stdClass $req) {
@@ -192,7 +241,14 @@ class TwitterService extends SocialService {
         $uo->setAttribute('twitter_name',           $req->twitter_name);
         $uo->setAttribute('twitter_otoken',         $req->twitter_otoken);
         $uo->setAttribute('twitter_otoken_secret',  $req->twitter_otoken_secret);
-        $uo->setAttribute('has_unknown_email',      true);
+    }
+
+    protected function removeSocialData(UserInfo $uo) {
+        $uo->setAttribute('twitter_user_id',        NULL);
+        $uo->setAttribute('twitter_screen_name',    NULL);
+        $uo->setAttribute('twitter_name',           NULL);
+        $uo->setAttribute('twitter_otoken',         NULL);
+        $uo->setAttribute('twitter_otoken_secret',  NULL);
     }
 
     private function getTwitterToken() {
@@ -232,17 +288,26 @@ class FacebookService extends SocialService {
     }
 
     protected function applyUserSearchFilter(UserList $ul, stdClass $req) {
-        $ul->filterByAttribute('facebook_user_id', $req->facebook_user_id);
+        //$ul->filterByAttribute('facebook_user_id', $req->facebook_user_id);
+
+        // The above worked but doesn't allow for a user signing in from Facebook that already exists locally, except for they haven't yet connected their local profile (so we don't know their Facebook ID)
+        $ul->filterByKeywords($req->facebook_email);
     }
 
     protected function getUserAccountData(stdClass $req) {
-        return ['uName' => $req->facebook_email, 'uPassword' => 'P@55W0RD', 'uEmail' => $req->facebook_email];
+        return ['uName' => $req->facebook_email, 'uPassword' => 'P@55W0RD', 'uEmail' => $req->facebook_email, 'emailReal' => true, 'fullName' => $req->facebook_name];
     }
 
     protected function attachSocialData(UserInfo $uo, stdClass $req) {
         $uo->setAttribute('facebook_user_id',       $req->facebook_user_id);
-        $uo->setAttribute('facebook_user_name',     $req->facebook_user_name);
+        $uo->setAttribute('facebook_user_name',     $req->facebook_user_name);  // So far I've not seen this used...
         $uo->setAttribute('facebook_name',          $req->facebook_name);
+    }
+
+    protected function removeSocialData(UserInfo $uo) {
+        $uo->setAttribute('facebook_user_id',       NULL);
+        $uo->setAttribute('facebook_user_name',     NULL);
+        $uo->setAttribute('facebook_name',          NULL);
     }
 
 }

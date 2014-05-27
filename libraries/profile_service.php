@@ -135,10 +135,67 @@ class ProfileService {
         return $u;
     }
 
+    public function sendPassword($email) {
+        $oUser = UserInfo::getByEmail($email);
+
+        if (!$oUser) throw new Exception('Could not found a matching account');
+
+        $newPassword = '';
+        $salt = "abcdefghijklmnpqrstuvwxyzABCDEFGHIJKLMNPQRSTUVWXYZ123456789";
+        for ($i = 0; $i < 7; $i++) {
+            $newPassword .= substr($salt, rand() %strlen($salt), 1);
+        }
+
+        $data = ['uPassword' => $password, 'uPasswordConfirm' => $password];
+
+        $oUser->update($data);
+
+        $message = new stdClass();
+
+        if (USER_REGISTRATION_WITH_EMAIL_ADDRESS) {
+            //$mh->addParameter('uName', $oUser->getUserEmail());
+            $message->toName = $oUser->getUserEmail();
+        }
+        else {
+            //$mh->addParameter('uName', $oUser->getUserName());
+            $message->toName = $oUser->getUserName();
+        }
+
+        //$mh->to($oUser->getUserEmail());
+        $message->toAddress = $oUser->getUserEmail();
+
+        // Generate hash that'll be used to authenticate user, allowing them to change their password
+        $h = Loader::helper('validation/identifier');
+        $uHash = $h->generate('UserValidationHashes', 'uHash');
+
+        $db = Loader::db();
+        $db->Execute("DELETE FROM UserValidationHashes WHERE uID=?", array( $oUser->uID ) );
+        $db->Execute("insert into UserValidationHashes (uID, uHash, uDateGenerated, type) values (?, ?, ?, ?)", array($oUser->uID, $uHash, time(),intval(UVTYPE_CHANGE_PASSWORD)));
+
+        //$mh->addParameter('changePassURL', $this->getChangePasswordUrl($uHash));
+        $message->changePassURL = $this->getChangePasswordUrl($uHash);
+
+        if (defined('EMAIL_ADDRESS_FORGOT_PASSWORD')) {
+            //$mh->from(EMAIL_ADDRESS_FORGOT_PASSWORD,  t('Account Confirmation'));
+            $message->fromAddress = EMAIL_ADDRESS_FORGOT_PASSWORD;
+            $message->fromName = t('Account Confirmation');
+        }
+        else {
+            $adminUser = UserInfo::getByID(USER_SUPER_ID);
+            if (is_object($adminUser)) {
+                //$mh->from($adminUser->getUserEmail(),  t('Account Confirmation'));
+                $message->fromAddress = $adminUser->getUserEmail();
+                $message->fromName = t('Account Confirmation');
+            }
+        }
+
+        $this->sendSetPasswordEmail($message);
+    }
+
     /**
      Begin the sign up procedure for the given email address
      */
-    public function signUp($email) {
+    public function signUp($email, $firstName = NULL, $lastName = NULL) {
         $userName = str_replace('.', '_dot_', str_replace('@', '_at_', $email));
 
         $newPassword = '';
@@ -147,8 +204,15 @@ class ProfileService {
             $newPassword .= substr($salt, rand() %strlen($salt), 1);
         }
 
-        $data = array('uName' => $userName, 'uPassword' => $newPassword, 'uEmail' => $email);
-        $oUser = UserInfo::add($data);
+        $oUser = UserInfo::getByEmail($email);
+
+        if (!$oUser) {
+            $data = array('uName' => $userName, 'uPassword' => $newPassword, 'uEmail' => $email);
+            $oUser = UserInfo::add($data);
+        }
+    
+        if ($firstName) $oUser->setAttribute('first_name', $firstName);
+        if ($lastName) $oUser->setAttribute('last_name', $lastName);
 
         //$mh = Loader::helper('mail');
         $message = new stdClass();

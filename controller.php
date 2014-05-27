@@ -6,7 +6,7 @@ class SocialApiPackage extends Package {
 
     protected $pkgHandle = 'social_api';
     protected $appVersionRequired = '5.6.0';
-    protected $pkgVersion = '1.0.0';
+    protected $pkgVersion = '1.0.3';
 
     public function getPackageName() {
         return t("Social API Package");
@@ -50,6 +50,9 @@ class SocialApiPackage extends Package {
         $this->installUserAttribute($pkg, 'twitter_otoken_secret',  'text', 'Twitter OAuth Token Secret');
 
         $this->installSinglePage($pkg, '/social_api', 'Social API', 'Social API');
+
+        /* ---------------- INSTALL BLOCK ---------------- */
+        $this->installBlockType($pkg, 'twitter_feed');
     }
 
     // Called every page load
@@ -73,13 +76,13 @@ class SocialApiPackage extends Package {
     }
 
     private function installBlockType($pkg, $handle) {
-        try {
+        //try {
             // TODO: Need to detect a previous block type installation rather than try/catch
             return BlockType::installBlockTypeFromPackage($handle, $pkg);
-        }
-        catch (Exception $ex) {
+        // }
+        // catch (Exception $ex) {
 
-        }
+        // }
     }
 
     private function installAttribute($pkg, $handle, $type, $name, $extraParams = NULL) {

@@ -1,8 +1,15 @@
 <?php
 
+// Added this check for when the user cancels Facebook account access and gets redirected back with a failure code
+// This check prevents a redirect loop (which Facebook disapprove of)
+if ($_GET['error_reason'] == 'user_denied') {
+    // TODO: Redirect somewhere more sensible than the homepage
+    header("Location: " . '/?error=integration_denied');
+    exit();
+}
+
 Loader::library('social/facebook/facebook', 'social_api');
 Loader::library('social/config/fbconfig',   'social_api');
-// Loader::library('user_service',             'social_api');
 Loader::library('social_service',           'social_api');
 
 $return_url = urldecode($_GET['return_url']);
@@ -37,11 +44,6 @@ if ($user) {
             $req->facebook_user_name = $user_profile['username'];
             $req->facebook_name = $user_profile['name'];
             $req->facebook_email = $user_profile['email'];
-
-            //print_r($user_profile);
-
-            // $us = new UserService();
-            // $us->socialLogin($req);
 
             $socialService = SocialService::getService('facebook');
             $socialService->handleSignInResponse($req);

@@ -1,0 +1,15 @@
+<?xml version="1.0"?>
+<schema version="0.3">
+    <table name="btTwitterFeed">
+        <field name="bID" type="I">
+            <key ></key>
+            <unsigned ></unsigned>
+        </field>
+        <field name="title" type="C" size="100" />
+        <field name="screen_name" type="C" size="50" />
+        <field name="max_results" type="I">
+            <notnull />
+            <default value="10" />
+        </field>
+    </table>
+</schema>

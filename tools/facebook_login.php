@@ -21,7 +21,7 @@ $facebook = new Facebook(['appId' => APP_ID, 'secret' => APP_SECRET]);
 
 $user = $facebook->getUser();
 
-print_r($user);
+//print_r($user);
 
 if ($user) {
     try {
